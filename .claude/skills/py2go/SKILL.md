@@ -15,7 +15,7 @@ compatibility: Claude Code, Cursor, and similar AI coding agents.
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(golangci-lint:*) Bash(git:*) Bash(python:*) Bash(python3:*) Agent AskUserQuestion
 metadata:
   author: python2go-fork
-  version: "0.2.1"
+  version: "0.2.2"
   inspired-by: "https://github.com/vanducng/skills/tree/main/skills/py2go"
   upstream: "https://winder.ai/python-to-go-migration-with-claude-code/"
 ---
@@ -27,6 +27,8 @@ End-to-end Python → Go migration. Discover → design → scaffold → transla
 **Hosts:** Claude Code (project skill under `.claude/skills/py2go`, invoke `/py2go`) and Cursor (same files via `.cursor/skills/py2go` symlink). One source of truth.
 
 Opinionated **defaults** with **escape hatches** recorded in `CLAUDE.md` / `AGENTS.md`. Prefer idiomatic Go over Python-shaped Go. Reject AST transpilers (Grumpy, etc.). Prefer stdlib; reach for third-party libs only when the default table says so or the escape hatch is documented.
+
+**Go target: 1.26+.** All generated Go must use modern language/stdlib idioms available through Go 1.26 (see baseline below). No pre-1.21 patterns when a current equivalent exists.
 
 ### Claude Code invocation
 
@@ -76,7 +78,7 @@ Two-pass. First pass: answer each prompt separately (do not merge early). Second
 
 Emit (same content in both agent rule files — do not drift):
 
-- **`CLAUDE.md`** — for Claude Code: stack defaults, escape hatches, public-API decision (`pkg/` vs `internal/`), translation non-negotiables
+- **`CLAUDE.md`** — for Claude Code: stack defaults, escape hatches, public-API decision (`pkg/` vs `internal/`), translation non-negotiables, **Go 1.26+ baseline**
 - **`AGENTS.md`** — same body for Cursor / other agents (copy or symlink to `CLAUDE.md`)
 - **`MIGRATION.md`** — ordered file/module map with checkboxes
 
@@ -86,22 +88,22 @@ If only one of `CLAUDE.md` / `AGENTS.md` already exists, update that file and mi
 
 ### 3. Scaffold
 
-`go mod init`, layout, `golangci-lint`, CI, Makefile with `build` / `test` / `lint` / `smoke`. Smoke must compile and run a trivial path.
+`go mod init`, then **pin the module**: `go mod edit -go=1.26` (toolchain `go mod init` may default to 1.25). Layout, `golangci-lint` (enable `modernize` if available), CI, Makefile with `build` / `test` / `lint` / `smoke`. Smoke must compile and run a trivial path. Record `go 1.26+` in `CLAUDE.md` / `AGENTS.md`.
 
 ### 4. Translate
 
 Per module in `MIGRATION.md` order:
 
 1. Read Python source + existing tests/fixtures
-2. Write Go test first (behavior / golden), then impl
-3. `go build && go vet && go test -race ./...` + lint
+2. Write Go test first (behavior / golden), then impl — using the Go 1.26+ baseline
+3. `go fix ./... && go build && go vet && go test -race ./...` + lint
 4. Check off `MIGRATION.md`; commit that module
 
 Under `--strict-tdd`: test file mtime must precede impl in the commit.
 
 ### 5. Validate
 
-Golden-file / parity checks on **real** production-shaped fixtures (path recorded in `CLAUDE.md` / `AGENTS.md`). Synthetic-only is not enough to mark validate done. Integration tests for IO boundaries. Dead-code sweep of unused Python ports.
+Golden-file / parity checks on **real** production-shaped fixtures (path recorded in `CLAUDE.md` / `AGENTS.md`). Synthetic-only is not enough to mark validate done. Integration tests for IO boundaries. Dead-code sweep of unused Python ports. Re-run `go fix ./...` and reject leftover pre-modern patterns (`interface{}`, `math/rand` v1, `sort.Slice`, `errors.As` dance where `AsType` fits, etc.).
 
 ### 6. Cutover
 
@@ -134,6 +136,42 @@ Orphan Python packages, unused Go deps (`go mod tidy`), remove dual-run scaffold
 7. **No synthetic-only validation** — real-data fixture path required.
 8. **NumPy/SciPy load-bearing** — STOP; recommend gRPC wrap of Python.
 9. **Stdlib-first** — see translation rules; optional libs only when noted.
+10. **Go 1.26+ modern idioms** — `go.mod` must be `go 1.26` or newer; apply the baseline below whenever a construct fits. Do not ship older equivalents for style habit.
+
+## Go 1.26+ baseline
+
+Use the modern form **whenever it applies**. Do not invent uses just to showcase a feature. Skip experimental `GOEXPERIMENT=…` APIs unless the user opts in.
+
+| Prefer | Over | Since |
+|---|---|---|
+| `any` | `interface{}` | 1.18 |
+| generics | `any` + type-assert soup | 1.18 |
+| `errors.Is` / `errors.As` / `errors.Join` | `== err`, multierr libs | 1.13+ / 1.20 |
+| `min` / `max` / `clear` | hand-rolled | 1.21 |
+| `slices` / `maps` / `cmp` (`Sort`, `Contains`, `Clone`, `Or`, …) | `sort.Slice`, manual loops | 1.21 |
+| `log/slog` | `log`, zap/zerolog (unless escape hatch) | 1.21 |
+| `sync.OnceValue` / `OnceFunc` | custom sync.Once wrappers | 1.21 |
+| `for i := range n` | `for i := 0; i < n; i++` | 1.22 |
+| no loop-var shadow copies | `x := x` in range loops | 1.22 |
+| `math/rand/v2` | `math/rand` + `rand.Seed` | 1.22 |
+| `database/sql.Null[T]` | hand-rolled null wrappers | 1.22 |
+| `reflect.TypeFor[T]()` | `reflect.TypeOf((*T)(nil)).Elem()` | 1.22 |
+| `iter` / `range` over funcs; `slices.Collect` / `maps.Keys` seq forms | awkward intermediate slices when an iterator is clearer | 1.23 |
+| `omitzero` JSON tag | `omitempty` for zero structs/values | 1.24 |
+| `os.Root` for user-supplied paths | open-at-path without root jail | 1.24 |
+| `t.Context()` / `b.Loop()` | `context.Background()` in tests; old bench timers | 1.24 |
+| `runtime.AddCleanup` | `runtime.SetFinalizer` | 1.24 |
+| `tool` directives in `go.mod` | stray tool deps in `require` | 1.24 |
+| `strings.SplitSeq` / `FieldsSeq` / `Lines` | split + range when streaming | 1.24 |
+| `sync.WaitGroup.Go` | `wg.Add` + `go func` + `Done` for simple cases | 1.25 |
+| `testing/synctest` for concurrent unit tests | time-sleep flake harnesses | 1.25 |
+| `new(expr)` for non-zero pointers | `ptr := v; &ptr` helpers | 1.26 |
+| `errors.AsType[T](err)` | `var x T; errors.As(err, &x)` | 1.26 |
+| `slog.NewMultiHandler` | third-party slog fan-out | 1.26 |
+| `httputil.ReverseProxy{Rewrite: …}` | `Director`-based proxies | 1.26 |
+| self-referential generic constraints when they simplify builders/trees | awkward workarounds | 1.26 |
+
+After each translate module and at validate: `go fix ./...` (Go 1.26 modernizers). Keep `CLAUDE.md` / `AGENTS.md` stating the Go 1.26+ requirement.
 
 ## Defaults and escape hatches
 

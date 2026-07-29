@@ -1,6 +1,6 @@
 # Python → Go Translation Rules
 
-**Stdlib-first.** Defaults below are the canonical translation. Optional third-party libs appear only as escape hatches — record them in `CLAUDE.md` / `AGENTS.md` when used. Prefer idiomatic Go over Python-shaped Go.
+**Stdlib-first.** Defaults below are the canonical translation. Optional third-party libs appear only as escape hatches — record them in `CLAUDE.md` / `AGENTS.md` when used. Prefer idiomatic Go over Python-shaped Go. **Target Go 1.26+** — use modern language/stdlib forms from the skill baseline whenever they apply (`new(expr)`, `errors.AsType`, `slices`/`maps`, `range n`, `sync.WaitGroup.Go`, etc.).
 
 ## How to read this file
 
@@ -19,23 +19,24 @@ Library names are real Go import paths.
 | `class Foo(Base):` (inheritance) | `type Foo struct{}` + interface; embed `*Base` only when truly is-a | stdlib |
 | `class Foo:` (data + methods) | `type Foo struct{}` + methods or free funcs; interface + concrete impl | stdlib |
 | `@dataclass` | `type Foo struct{}` + `func NewFoo(...) (*Foo, error)` | stdlib |
-| `@dataclass` with defaults | constructor + functional options | stdlib |
+| `@dataclass` with defaults | constructor + functional options; non-zero field pointers via `new(expr)` | stdlib — Go 1.26+ `new(30)` not a `ptr` helper |
 | `Enum` | `type X int; const ( A X = iota; ... )` + `String()`; Marshal if serialized | stdlib |
-| `Optional[T]` (nullable field) | `*T` | stdlib; avoid Option monads by default |
+| `Optional[T]` (nullable field) | `*T` (init with `new(expr)` when non-zero) | stdlib; avoid Option monads by default |
 | `Optional[T]` (return value) | `(T, error)` for failure; `(T, bool)` for lookup | stdlib |
 | `Union[A, B]` | interface + type switch | stdlib; dual-success cases are rare — redesign |
-| `dict[str, Any]` (at boundary) | `map[string]any` at IO; decode to concrete struct ASAP | stdlib |
-| list comprehension `[f(x) for x in xs]` | `for` + `append` | stdlib; optional `samber/lo` only for 2+ chained transforms |
+| `dict[str, Any]` (at boundary) | `map[string]any` at IO; decode to concrete struct ASAP | stdlib — `any`, not `interface{}` |
+| list comprehension `[f(x) for x in xs]` | `for` + `append`; or `slices` helpers when clearer | stdlib; optional `samber/lo` only for 2+ chained transforms |
 | list comprehension w/ filter | `for` + `if` + `append` | stdlib |
 | `sum(xs)` | `for _, v := range xs { sum += v }` | stdlib |
-| `sorted(xs)` | `slices.Sort(xs)` | stdlib |
+| `sorted(xs)` | `slices.Sort(xs)` | stdlib — not `sort.Slice` |
 | `xs.sort(key=fn)` | `slices.SortFunc(xs, less)` | stdlib |
 | `x in xs` | `slices.Contains(xs, x)` | stdlib — **not** `lo.Contains` |
 | `set(xs)` (dedup) | loop into `map[T]struct{}` then keys; or sort+compact | stdlib |
 | `set` semantics | `map[T]struct{}` | stdlib |
 | `groupby(xs, key=fn)` | `map[K][]V` built in a loop | stdlib |
-| `zip(a, b)` | indexed `for` over `min(len(a), len(b))` | stdlib |
+| `zip(a, b)` | indexed `for` over `min(len(a), len(b))` | stdlib — builtin `min` |
 | `chunk(xs, n)` | slice windows in a loop | stdlib |
+| `range(n)` | `for i := range n` | stdlib — Go 1.22+ |
 
 ## Concurrency
 
@@ -43,7 +44,7 @@ Library names are real Go import paths.
 |---|---|---|
 | `async def f()` | `func f(ctx context.Context) (T, error)` | stdlib — pass `context.Context` |
 | `await f()` | direct call; concurrency via goroutine + channel | stdlib |
-| `asyncio.gather(*tasks)` | `errgroup.Group` + `g.Go` + `g.Wait` | `golang.org/x/sync/errgroup` |
+| `asyncio.gather(*tasks)` | `errgroup.Group` + `g.Go` + `g.Wait`; simple fan-out: `sync.WaitGroup.Go` | `golang.org/x/sync/errgroup` / stdlib 1.25+ |
 | bounded gather | `errgroup` + `semaphore.Weighted` | `golang.org/x/sync/semaphore` |
 | `asyncio.Queue` | `chan T` (buffered); writer closes | stdlib |
 | `asyncio.Lock` / `Semaphore` | `sync.Mutex` / `semaphore.Weighted` | stdlib / x/sync |
@@ -59,7 +60,7 @@ Library names are real Go import paths.
 | `try / except ValueError` | `if err != nil { ... }` immediately | stdlib |
 | `try / except / finally` | `defer cleanup()` + `if err != nil` | stdlib |
 | `raise X from Y` | `fmt.Errorf("...: %w", y)` | stdlib |
-| custom exception class | `var ErrX = errors.New("...")` + `errors.Is`; or typed + `errors.As` | stdlib |
+| custom exception class | `var ErrX = errors.New("...")` + `errors.Is`; typed: `errors.AsType[*MyErr](err)` | stdlib — Go 1.26+ Prefer `AsType` over `var x; errors.As` |
 | `logger.error("..." + str(id))` | `slog.Error("op failed", "user_id", id)` | low-cardinality attrs |
 | panic recovery in goroutine | `defer func() { if r := recover(); r != nil { ... } }()` at entry | stdlib |
 | `assert x, msg` | `if !x { return fmt.Errorf("...") }` | never assert-libs in prod |
