@@ -108,4 +108,3 @@ In chat: ask to run **py2go** on a Python path.
 
 HTTP **Fiber**, DB **GORM** + **pgx**, logger **slog**. Escape hatches go in `CLAUDE.md` / `AGENTS.md`. Translation map: [`references/translation-rules.md`](.claude/skills/py2go/references/translation-rules.md).
 
-Inspired by [vanducng/skills py2go](https://github.com/vanducng/skills/tree/main/skills/py2go) and the [Winder.ai case study](https://winder.ai/python-to-go-migration-with-claude-code/).
