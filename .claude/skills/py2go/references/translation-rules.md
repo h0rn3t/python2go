@@ -1,6 +1,6 @@
 # Python → Go Translation Rules
 
-**Stdlib-first.** Defaults below are the canonical translation. Optional third-party libs appear only as escape hatches — record them in `CLAUDE.md` / `AGENTS.md` when used. Prefer idiomatic Go over Python-shaped Go. **Target Go 1.26+** — use modern language/stdlib forms from the skill baseline whenever they apply (`new(expr)`, `errors.AsType`, `slices`/`maps`, `range n`, `sync.WaitGroup.Go`, etc.).
+**Stdlib-first.** Defaults below are the canonical translation. Optional third-party libs appear only as escape hatches — record them in `CLAUDE.md` / `AGENTS.md` when used. Prefer idiomatic Go over Python-shaped Go. **Target Go 1.26+** — apply [go126-baseline.md](go126-baseline.md) whenever it fits (`new(expr)`, `errors.AsType`, `slices`/`maps`, `range n`, `sync.WaitGroup.Go`, etc.).
 
 ## How to read this file
 

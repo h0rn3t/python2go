@@ -106,5 +106,5 @@ In chat: ask to run **py2go** on a Python path.
 
 ## Defaults
 
-HTTP **Fiber**, DB **GORM** + **pgx**, logger **slog**. Escape hatches go in `CLAUDE.md` / `AGENTS.md`. Translation map: [`references/translation-rules.md`](.claude/skills/py2go/references/translation-rules.md).
+HTTP **Fiber**, DB **GORM** + **pgx**, logger **slog**. Escape hatches go in `CLAUDE.md` / `AGENTS.md`. Tuned for Cursor with Grok 4.5 (plan) and Composer 2.5 (execute). Refs: [translation-rules](.claude/skills/py2go/references/translation-rules.md), [go126-baseline](.claude/skills/py2go/references/go126-baseline.md), [artifacts](.claude/skills/py2go/references/artifacts.md).
 
