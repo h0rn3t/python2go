@@ -9,7 +9,7 @@ description: >-
 compatibility: Cursor (Grok 4.5, Composer 2.5), Claude Code, similar agents.
 metadata:
   author: python2go-fork
-  version: "0.3.0"
+  version: "0.3.1"
   inspired-by: "https://github.com/vanducng/skills/tree/main/skills/py2go"
   upstream: "https://winder.ai/python-to-go-migration-with-claude-code/"
 ---
@@ -43,8 +43,9 @@ Canonical files live under `.claude/skills/py2go/`; Cursor uses `.cursor/skills/
 | Any Python→Go construct while translating | [references/translation-rules.md](references/translation-rules.md) |
 | Scaffold / translate / validate | [references/go126-baseline.md](references/go126-baseline.md) |
 | Design (emit artifacts) | [references/artifacts.md](references/artifacts.md) |
+| Design / scaffold when type is `http` or `worker` | [references/layered.md](references/layered.md) |
 
-Do not proceed past the gate without reading the file. Soft “optional” reads are forbidden for these three.
+Do not proceed past the gate without reading the file. Soft “optional” reads are forbidden for these.
 
 ## Phase gates
 
@@ -73,13 +74,13 @@ Emit from [references/artifacts.md](references/artifacts.md):
 
 Spec-first: generate stubs (`oapi-codegen` / `buf`) first; `MIGRATION.md` tracks handlers, not Python files 1:1.
 
-**Done when:** both agent files + `MIGRATION.md` exist; public API (`pkg/` vs `internal/`) decided in one sentence.
+**Done when:** both agent files + `MIGRATION.md` exist; public API (`pkg/` vs `internal/`) decided in one sentence; Architecture (`layered` | `idiomatic`) recorded. For `http`/`worker`, MUST have read [layered.md](references/layered.md).
 
 ### 3. Scaffold
 
-`go mod init` → `go mod edit -go=1.26` (init may default older). Layout, `golangci-lint` (enable `modernize` if available), CI, Makefile: `build` / `test` / `lint` / `smoke`. Smoke must compile and run a trivial path.
+`go mod init` → `go mod edit -go=1.26` (init may default older). Layout, `golangci-lint` (enable `modernize` if available), CI, Makefile: `build` / `test` / `lint` / `smoke`. Smoke must compile and run a trivial path. For `http`/`worker`: scaffold the six layered packages from [layered.md](references/layered.md) (stubs OK).
 
-**Done when:** `go 1.26` in `go.mod` and smoke green.
+**Done when:** `go 1.26` in `go.mod` and smoke green; layered packages present when type is `http`/`worker`.
 
 ### 4. Translate
 
@@ -116,12 +117,12 @@ Orphan Python, `go mod tidy`, remove dual-run scaffolding, short retro in `notes
 
 | Type | Detected from | Default stack | Escape hatch |
 |---|---|---|---|
-| CLI | Click/Typer, `console_scripts` | Cobra + Viper + lipgloss | `flag` + env for tiny tools |
-| TUI | Textual / Rich.live / prompt_toolkit | Bubble Tea + Bubbles + Lipgloss | — (Elm rewrite) |
-| HTTP | FastAPI/Flask/Django/Starlette | **Fiber** + validator | chi / Echo / Gin / `net/http` if team chose |
-| Pipeline | pandas/polars/Airflow/Prefect/Dagster | streaming `[]T` + channels | qframe; **STOP** if NumPy/SciPy load-bearing |
-| Worker | Celery/RQ/Dramatiq/Arq/Taskiq | asynq (Redis) or river (Postgres) | watermill / Temporal if event/workflow heavy |
-| Library | `__init__.py` exports | `pkg/` + forced public-API decision | — |
+| CLI | Click/Typer, `console_scripts` | Cobra + Viper + lipgloss; idiomatic layout | `flag` + env for tiny tools |
+| TUI | Textual / Rich.live / prompt_toolkit | Bubble Tea + Bubbles + Lipgloss; idiomatic layout | — (Elm rewrite) |
+| HTTP | FastAPI/Flask/Django/Starlette | **Fiber** + validator; **layered** `internal/` | chi / Echo / Gin / `net/http` if team chose |
+| Pipeline | pandas/polars/Airflow/Prefect/Dagster | streaming `[]T` + channels; idiomatic layout | qframe; **STOP** if NumPy/SciPy load-bearing |
+| Worker | Celery/RQ/Dramatiq/Arq/Taskiq | asynq (Redis) or river (Postgres); **layered** `internal/` | watermill / Temporal if event/workflow heavy |
+| Library | `__init__.py` exports | `pkg/` + forced public-API decision; idiomatic layout | — |
 
 ## Hard guardrails
 
@@ -135,6 +136,7 @@ Orphan Python, `go mod tidy`, remove dual-run scaffolding, short retro in `notes
 8. NumPy/SciPy load-bearing — STOP; gRPC-wrap Python.
 9. Stdlib-first — see translation-rules.
 10. Go 1.26+ idioms — see go126-baseline; no older equivalents by habit.
+11. `http`/`worker`: layered packages + strict deps (`handler → service → repository`); see layered.md. Other types: idiomatic layout — do not invent empty layered folders.
 
 ## Defaults / escape hatches
 

@@ -17,6 +17,11 @@ Fill these during **design**. Keep `AGENTS.md` and `CLAUDE.md` identical in subs
 - Exported: pkg/... | none (all internal/)
 - Decision: <one sentence>
 
+## Architecture
+- Layout: layered | idiomatic
+- If layered (http|worker): handler → service → repository; model + schema + config always present
+- If idiomatic (cli|tui|pipeline|lib): no forced layered folders
+
 ## Non-negotiables
 - Idiomatic Go, not Python-shaped
 - No lib/pq; no golang/mock; no panic for business errors
